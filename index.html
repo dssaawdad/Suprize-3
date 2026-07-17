@@ -1,0 +1,231 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+<meta charset="UTF-8">
+<title>Layered Heart Animation</title>
+<style>
+html,body{
+    margin:0;
+    overflow:hidden;
+    background:#050510;
+}
+canvas{
+    display:block;
+}
+</style>
+</head>
+<body>
+
+<canvas id="c"></canvas>
+
+<script>
+const canvas = document.getElementById("c");
+const ctx = canvas.getContext("2d");
+
+function resize(){
+    canvas.width = innerWidth;
+    canvas.height = innerHeight;
+}
+resize();
+window.onresize = resize;
+
+const cx = canvas.width/2;
+const cy = canvas.height/2;
+
+const points = [];
+const scale = 18;
+
+// Kalp noktaları
+for(let t=0; t<Math.PI*2; t+=0.01){
+    const x = 16*Math.pow(Math.sin(t),3);
+    const y = 13*Math.cos(t)
+             - 5*Math.cos(2*t)
+             - 2*Math.cos(3*t)
+             - Math.cos(4*t);
+
+    points.push({
+        x:x*scale,
+        y:-y*scale,
+        t:t
+    });
+}
+
+// Sol iç merkezden başlayacak şekilde sırala
+points.sort((a,b)=>a.t-b.t);
+
+// Katman renkleri
+const layers = [
+    ["#ff33cc", "#2266ff"], // 1. katman
+    ["#00ffff", "#ffffff"], // 2. katman
+    ["#ff0000", "#ff0000"], // 3. katman
+    ["#ff66ff", "#ffffff"], // 4. katman
+];
+
+let progress = 0.25;
+let layer = 0;
+
+// Yazının görünürlük (opacity) kontrolü için değişkenler
+let textOpacity = 0;
+
+function drawStars(){
+    for(let i=0;i<120;i++){
+        ctx.fillStyle = "rgba(255,255,255,.7)";
+        ctx.fillRect((i*97)%canvas.width,(i*61)%canvas.height,2,2);
+    }
+}
+
+// Yazıyı yumuşak bir parlama efektiyle çizen fonksiyon
+function drawRomanticText() {
+    ctx.save();
+    
+    // Canvas gölge ayarları (neon pembe parlama efekti)
+    ctx.shadowBlur = 15;
+    ctx.shadowColor = "rgba(255, 51, 204, " + textOpacity + ")";
+    
+    // Yazı tipi ve hizalama ayarları
+    ctx.font = "bold 26px 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif";
+    ctx.textAlign = "center";
+    
+    // Yazının dikeyde kalbin en alt ucunun biraz daha aşağısına gelmesi için konumlandırma
+    // Kalp formülündeki en alt nokta y koordinatında yaklaşık -17*scale seviyelerindedir.
+    const textY = (canvas.height / 2) + (17 * scale) + 60; 
+
+    // Satır satır yazdırmak hizalamayı daha şık gösterir
+    ctx.fillStyle = "rgba(255, 255, 255, " + textOpacity + ")";
+    ctx.fillText("Seni çok seviyorum yavrum", canvas.width / 2, textY);
+    
+    ctx.fillStyle = "rgba(255, 102, 255, " + textOpacity + ")";
+    ctx.fillText("iyiki varsın", canvas.width / 2, textY + 38);
+    
+    ctx.fillStyle = "rgba(255, 255, 255, " + textOpacity + ")";
+    ctx.fillText("Y", canvas.width / 2, textY + 80);
+    
+    ctx.restore();
+}
+
+function animate(){
+
+    ctx.fillStyle = "rgba(5,5,16,0.08)";
+    ctx.fillRect(0,0,canvas.width,canvas.height);
+
+    drawStars();
+
+    const currentCx = canvas.width / 2;
+    const currentCy = canvas.height / 2;
+
+    // Önceki katmanları tam çiz
+    for(let l=0; l<layer; l++){
+        for(let i=0; i<points.length; i++){
+            const p = points[i];
+
+            // Katmanlar birbirini kapatmasın, dışa doğru bir çerçeve gibi dizilsin
+            const katmanScale = 1 + (l * 0.03); 
+
+            const g = ctx.createLinearGradient(
+                cx+(p.x*katmanScale), cy+(p.y*katmanScale),
+                cx, cy
+            );
+
+            g.addColorStop(0, layers[l][0]);
+            g.addColorStop(1, layers[l][1]);
+
+            ctx.strokeStyle = g;
+            ctx.shadowBlur = 10;
+            ctx.shadowColor = layers[l][0];
+            ctx.lineWidth = 0.8;
+
+            ctx.beginPath();
+            ctx.moveTo(cx,cy);
+            ctx.lineTo(cx+(p.x*katmanScale), cy+(p.y*katmanScale));
+            ctx.stroke();
+        }
+    }
+
+    // Aktif katman soldan sağa çiziliyor
+for(let i=0; i<progress; i++){
+    const p = points[i];
+    const g = ctx.createLinearGradient(cx+p.x, cy+p.y, cx, cy);
+    g.addColorStop(0, layers[layer][0]);
+    g.addColorStop(1, layers[layer][1]);
+    ctx.strokeStyle = g;
+
+    // --- YENİ EKLENTİ: Uç kısma gelince çizgiyi kalınlaştır ---
+    // t değeri yaklaşık olarak alt uca denk gelir (2.0 - 4.2 arası)
+    if (p.t > 2.0 && p.t < 4.2) {
+        ctx.lineWidth = 2.5; // Uçlar için daha kalın çizgi
+    } else {
+        ctx.lineWidth = 1.4; // Normal kalınlık
+    }
+
+    ctx.beginPath();
+    ctx.moveTo(cx,cy);
+    ctx.lineTo(cx+p.x, cy+p.y);
+    ctx.stroke();
+}
+
+    // Ortadaki beyaz çizgi
+    ctx.strokeStyle = "white";
+    ctx.lineWidth = 4;
+    ctx.beginPath();
+    ctx.moveTo(currentCx, currentCy-20);
+    ctx.lineTo(currentCx, currentCy+20);
+    ctx.stroke();
+
+    // Çizim hızını belirleyen ilerleme miktarı
+    // Hız kontrolü: 1. katman çok hızlı, diğerleri yavaş
+if (layer === 0) {
+    progress += 0.25; // 1. katman hızı
+} else if (layer === 1) {
+    progress += 2.0; // 2. katman hızı
+} else {
+    progress += 2.2; // Diğerleri
+}
+
+    // Bir katman bitince sonraki katmana geç
+    if(progress >= points.length){
+        progress = 0;
+        layer++;
+
+        // Tüm katmanlar bittiyse son hali bırak
+    if(layer >= layers.length){
+        layer = layers.length - 1;
+        progress = points.length;
+
+        // --- YENİ EKLENTİ: En alt uca küçük bir nokta ekle ---
+        // Son çizilen noktanın koordinatını al (bu nokta zaten en alt uçtur)
+        const sonNokta = points[points.length - 1];
+        
+        ctx.save();
+        // Neon parlama efekti ver
+        ctx.shadowBlur = 15;
+        ctx.shadowColor = layers[layer][0]; // Son katmanın rengi
+        ctx.fillStyle = layers[layer][0];   // Noktanın içi dolu rengi
+        
+        ctx.beginPath();
+        // Tam uç noktaya, çok küçük (yarıçap 2.5) bir daire çiz
+        ctx.arc(cx + sonNokta.x, cy + sonNokta.y, 2.5, 0, Math.PI*2); 
+        ctx.fill();
+        ctx.restore();
+    }
+    }
+
+    // --- YAZI KONTROLÜ ---
+    // Eğer en azından 1. katman (layer >= 1) tamamlandıysa yazıyı yavaşça belirginleştir (fade-in)
+    if (layer >= 1) {
+        if (textOpacity < 1) {
+            textOpacity += 0.015; // Belirme hızı (arttırdıkça daha hızlı görünür olur)
+        }
+    }
+
+    // Yazıyı çiz
+    if (textOpacity > 0) {
+        drawRomanticText();
+    }
+
+    requestAnimationFrame(animate);
+}
+
+animate();
+</script>
+</body>
+</html>
